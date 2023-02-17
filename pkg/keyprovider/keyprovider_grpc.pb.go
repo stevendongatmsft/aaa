@@ -24,6 +24,7 @@ const _ = grpc.SupportPackageIsVersion7
 type KeyProviderServiceClient interface {
 	WrapKey(ctx context.Context, in *KeyProviderKeyWrapProtocolInput, opts ...grpc.CallOption) (*KeyProviderKeyWrapProtocolOutput, error)
 	UnWrapKey(ctx context.Context, in *KeyProviderKeyWrapProtocolInput, opts ...grpc.CallOption) (*KeyProviderKeyWrapProtocolOutput, error)
+	GetReport(ctx context.Context, in *KeyProviderGetReportInput, opts ...grpc.CallOption) (*KeyProviderGetReportOutput, error)
 	SayHello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloReply, error)
 }
 
@@ -53,6 +54,15 @@ func (c *keyProviderServiceClient) UnWrapKey(ctx context.Context, in *KeyProvide
 	return out, nil
 }
 
+func (c *keyProviderServiceClient) GetReport(ctx context.Context, in *KeyProviderGetReportInput, opts ...grpc.CallOption) (*KeyProviderGetReportOutput, error) {
+	out := new(KeyProviderGetReportOutput)
+	err := c.cc.Invoke(ctx, "/keyprovider.KeyProviderService/GetReport", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *keyProviderServiceClient) SayHello(ctx context.Context, in *HelloRequest, opts ...grpc.CallOption) (*HelloReply, error) {
 	out := new(HelloReply)
 	err := c.cc.Invoke(ctx, "/keyprovider.KeyProviderService/SayHello", in, out, opts...)
@@ -68,6 +78,7 @@ func (c *keyProviderServiceClient) SayHello(ctx context.Context, in *HelloReques
 type KeyProviderServiceServer interface {
 	WrapKey(context.Context, *KeyProviderKeyWrapProtocolInput) (*KeyProviderKeyWrapProtocolOutput, error)
 	UnWrapKey(context.Context, *KeyProviderKeyWrapProtocolInput) (*KeyProviderKeyWrapProtocolOutput, error)
+	GetReport(context.Context, *KeyProviderGetReportInput) (*KeyProviderGetReportOutput, error)
 	SayHello(context.Context, *HelloRequest) (*HelloReply, error)
 	mustEmbedUnimplementedKeyProviderServiceServer()
 }
@@ -81,6 +92,9 @@ func (UnimplementedKeyProviderServiceServer) WrapKey(context.Context, *KeyProvid
 }
 func (UnimplementedKeyProviderServiceServer) UnWrapKey(context.Context, *KeyProviderKeyWrapProtocolInput) (*KeyProviderKeyWrapProtocolOutput, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnWrapKey not implemented")
+}
+func (UnimplementedKeyProviderServiceServer) GetReport(context.Context, *KeyProviderGetReportInput) (*KeyProviderGetReportOutput, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetReport not implemented")
 }
 func (UnimplementedKeyProviderServiceServer) SayHello(context.Context, *HelloRequest) (*HelloReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SayHello not implemented")
@@ -134,6 +148,24 @@ func _KeyProviderService_UnWrapKey_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _KeyProviderService_GetReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KeyProviderGetReportInput)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KeyProviderServiceServer).GetReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/keyprovider.KeyProviderService/GetReport",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KeyProviderServiceServer).GetReport(ctx, req.(*KeyProviderGetReportInput))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _KeyProviderService_SayHello_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HelloRequest)
 	if err := dec(in); err != nil {
@@ -166,6 +198,10 @@ var KeyProviderService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UnWrapKey",
 			Handler:    _KeyProviderService_UnWrapKey_Handler,
+		},
+		{
+			MethodName: "GetReport",
+			Handler:    _KeyProviderService_GetReport_Handler,
 		},
 		{
 			MethodName: "SayHello",

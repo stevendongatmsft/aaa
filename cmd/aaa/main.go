@@ -12,6 +12,7 @@ import (
 	"path"
 	"strings"
 	"os"
+	"os/exec"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -288,6 +289,25 @@ func (s *server) UnWrapKey(c context.Context, grpcInput *keyprovider.KeyProvider
 	}, nil
 
 	return out, nil
+}
+
+func (s *server) GetReport(c context.Context, in *keyprovider.KeyProviderGetReportInput) (*keyprovider.KeyProviderGetReportOutput, error) {
+	reportDataStr := in.GetReportDataHexString()
+	log.Printf("Received report data: %v", reportDataStr)
+
+	if _, err := os.Stat("/dev/sev"); err != nil {
+		log.Fatalf("SEV guest driver is missing: %v", err)
+	}
+
+	cmd := exec.Command("/bin/get-snp-report", reportDataStr)
+	reportOutput, err := cmd.Output()
+	if err != nil {
+		log.Fatalf("Failed to generate attestation report: %v", err)
+	}
+
+	return &keyprovider.KeyProviderGetReportOutput{
+		ReportHexString: string(reportOutput),
+	}, nil
 }
 
 func main() {
