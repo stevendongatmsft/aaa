@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"path"
@@ -22,7 +23,9 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 	"github.com/container-investigations/aaa/pkg/keyprovider"
 	"github.com/Microsoft/confidential-sidecar-containers/pkg/attest"
 	"github.com/Microsoft/confidential-sidecar-containers/pkg/common"
@@ -114,7 +117,7 @@ func (s *server) SayHello(ctx context.Context, in *keyprovider.HelloRequest) (*k
 	return &keyprovider.HelloReply{Message: "Hello " + in.GetName()}, nil
 }
 
-func directWrap(optsdata []byte, key_path string) []byte {
+func directWrap(optsdata []byte, key_path string) ([]byte, error) {
 	_, kid := path.Split(key_path)
 	var annotation AnnotationPacket
 	annotation.Kid = kid
@@ -125,12 +128,12 @@ func directWrap(optsdata []byte, key_path string) []byte {
 	path := key_path + "-info.json"
 	keyInfoBytes, e := os.ReadFile(path)
 	if e != nil {
-		log.Fatalf("Failed to read key info file %v", path)
+		return nil, fmt.Errorf("Failed to read key info file %v", path)
 	}
 
 	err := json.Unmarshal(keyInfoBytes, &keyInfo)
 	if err != nil {
-		log.Fatalf("Invalid RSA key info file %v", path)
+		return nil, fmt.Errorf("Invalid RSA key info file %v", path)
 	}
 	log.Printf("%v", keyInfo)
 
@@ -139,27 +142,27 @@ func directWrap(optsdata []byte, key_path string) []byte {
 
 	pubpem, err := os.ReadFile(keyInfo.PublicKeyPath)
 	if err != nil {
-		log.Fatalf("Failed to read public key file %v", keyInfo.PublicKeyPath)
+		return nil, fmt.Errorf("Failed to read public key file %v", keyInfo.PublicKeyPath)
 	}
 	block, _ := pem.Decode([]byte(pubpem))
 	key, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		log.Fatalf("Invalid public key in %v, error: %v", path, err)
+		return nil, fmt.Errorf("Invalid public key in %v, error: %v", path, err)
 	}
 
 	var ciphertext []byte
 	if pubkey, ok := key.(*rsa.PublicKey); ok {
 		ciphertext, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, pubkey, optsdata, nil)
 		if err != nil {
-			log.Fatalf("Failed to encrypt with the public key %v", err)
+			return nil, fmt.Errorf("Failed to encrypt with the public key %v", err)
 		}
 	} else {
-		log.Fatalf("Invalid public RSA key in %v", path)
+		return nil, fmt.Errorf("Invalid public RSA key in %v", path)
 	}
 
 	annotation.WrappedData = ciphertext
 	annotationBytes, _ :=  json.Marshal(annotation)
-	return annotationBytes
+	return annotationBytes, nil
 }
 
 func (s *server) WrapKey(c context.Context, grpcInput *keyprovider.KeyProviderKeyWrapProtocolInput) (*keyprovider.KeyProviderKeyWrapProtocolOutput, error) {
@@ -167,34 +170,38 @@ func (s *server) WrapKey(c context.Context, grpcInput *keyprovider.KeyProviderKe
 	str := string(grpcInput.KeyProviderKeyWrapProtocolInput)
 	err := json.Unmarshal(grpcInput.KeyProviderKeyWrapProtocolInput, &input)
 	if err != nil {
-		log.Fatalf("Ill-formed key provider input: %v. Error: %v", str, err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, "Ill-formed key provider input: %v. Error: %v", str, err.Error())
 	}
 	log.Printf("Key provider input: %v", input)
 
 	var ec = input.KeyWrapParams.Ec
 	if len(ec.Parameters["attestation-agent"]) == 0 {
-		log.Fatalf("attestation-agent must be specified in the encryption config parameters: %v", ec)
+		return nil, status.Errorf(codes.InvalidArgument, "attestation-agent must be specified in the encryption config parameters: %v", ec)
 	}
 	aaKid, _ := base64.StdEncoding.DecodeString(ec.Parameters["attestation-agent"][0])
 	tokens := strings.Split(string(aaKid), ":")
 
 	if len(tokens) < 2 {
-		log.Fatalf("Key id is not provided in the request")
+		return nil, status.Errorf(codes.InvalidArgument, "Key id is not provided in the request")
 	}
 
 	aa := tokens[0]
 	kid := tokens[1]
 	if aa != "aaa" {
-		log.Fatalf("Unexpected attestation agent specified. Perhaps you send the request to a wrong endpoint?")
+		return nil, status.Errorf(codes.InvalidArgument, "Unexpected attestation agent specified. Perhaps you send the request to a wrong endpoint?")
 	}
 	log.Printf("Attestation agent: %v, kid: %v", aa, kid)
 
 	optsdata, err := base64.StdEncoding.DecodeString(input.KeyWrapParams.Optsdata)
 	if err != nil {
-		log.Fatalf("Failed to decode optsdata %v", err)
+		return nil, status.Errorf(codes.InvalidArgument , "Optsdata is not base64 encoding: %v", err)
 	}
 
-	annotationBytes := directWrap(optsdata, kid)
+	annotationBytes, e := directWrap(optsdata, kid)
+	if e != nil {
+		return nil, status.Errorf(codes.Internal, "%v", e)
+	}
+
 	protocolBytes, _ := json.Marshal(KeyProviderProtocolOutput{
 		KeyWrapResults: KeyWrapResults{Annotation: annotationBytes},
 	})
@@ -209,32 +216,32 @@ func (s *server) UnWrapKey(c context.Context, grpcInput *keyprovider.KeyProvider
 	str := string(grpcInput.KeyProviderKeyWrapProtocolInput)
 	err := json.Unmarshal(grpcInput.KeyProviderKeyWrapProtocolInput, &input)
 	if err != nil {
-		log.Fatalf("Ill-formed key provider input: %v. Error: %v", str, err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, "Ill-formed key provider input: %v. Error: %v", str, err.Error())
 	}
 	log.Printf("Key provider input: %v", input)
 
 	var dc = input.KeyUnwrapParams.Dc
 	if len(dc.Parameters["attestation-agent"]) == 0 {
-		log.Fatalf("attestation-agent must be specified in decryption config parameters: %v", str)
+		return nil, status.Errorf(codes.InvalidArgument , "attestation-agent must be specified in decryption config parameters: %v", str)
 	}
 	aa, _ := base64.StdEncoding.DecodeString(dc.Parameters["attestation-agent"][0])
 	log.Printf("Attestation agent name: %v", string(aa))
 
 	if string(aa) != "aaa" {
-		log.Fatalf("Unexpected attestation agent specified. Perhaps you send the request to a wrong endpoint?")
+		return nil, status.Errorf(codes.InvalidArgument, "Unexpected attestation agent specified. Perhaps you send the request to a wrong endpoint?")
 	}
 
 	var annotationBytes []byte
 	annotationBytes, err = base64.StdEncoding.DecodeString(input.KeyUnwrapParams.Annotation)
 	if err != nil {
-		log.Fatalf("Annotation is not a base64 encoding: %v. Error: %v", input.KeyUnwrapParams.Annotation, err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, "Annotation is not a base64 encoding: %v. Error: %v", input.KeyUnwrapParams.Annotation, err.Error())
 	}
 	log.Printf("Decoded annotation: %v", string(annotationBytes))
 
 	var annotation AnnotationPacket
 	err = json.Unmarshal(annotationBytes, &annotation)
 	if err != nil {
-		log.Fatalf("Ill-formed annotation packet: %v. Error: %v", input.KeyUnwrapParams.Annotation, err.Error())
+		return nil, status.Errorf(codes.InvalidArgument, "Ill-formed annotation packet: %v. Error: %v", input.KeyUnwrapParams.Annotation, err.Error())
 	}
 	log.Printf("Annotation packet: %v", annotation)
 
@@ -261,12 +268,12 @@ func (s *server) UnWrapKey(c context.Context, grpcInput *keyprovider.KeyProvider
 	keyBytes, err := skr.SecureKeyRelease("", azure_info.CertCache, azure_info.Identity, skrKeyBlob)
 
 	if err != nil {
-		log.Fatalf("SKR failed: %v", err)
+		return nil, status.Errorf(codes.Internal, "SKR failed: %v", err)
 	}
 
        key, err := x509.ParsePKCS8PrivateKey(keyBytes)
        if err != nil {
-                log.Fatalf("Released key is invalid: %v", err)
+                return nil, status.Errorf(codes.Internal, "Released key is invalid: %v", err)
         }
 
 	var out *keyprovider.KeyProviderKeyWrapProtocolOutput = nil
@@ -274,10 +281,10 @@ func (s *server) UnWrapKey(c context.Context, grpcInput *keyprovider.KeyProvider
        if privkey, ok := key.(*rsa.PrivateKey); ok {
                plaintext, err = rsa.DecryptOAEP(sha256.New(), rand.Reader, privkey, annotation.WrappedData, nil)
                if err != nil {
-                       log.Fatalf("Decryption failed: %v", err)
+                       return nil, status.Errorf(codes.Internal, "Unwrapping failed: %v", err)
                }
        } else {
-		log.Fatalf("Released key is not a RSA private key: %v", err)
+		return nil, status.Errorf(codes.Internal, "Released key is not a RSA private key: %v", err)
 	}
 
 	protocolBytes, _ := json.Marshal(KeyProviderProtocolOutput{
@@ -296,13 +303,13 @@ func (s *server) GetReport(c context.Context, in *keyprovider.KeyProviderGetRepo
 	log.Printf("Received report data: %v", reportDataStr)
 
 	if _, err := os.Stat("/dev/sev"); err != nil {
-		log.Fatalf("SEV guest driver is missing: %v", err)
+		return nil, status.Errorf(codes.FailedPrecondition, "SEV guest driver is missing: %v", err)
 	}
 
 	cmd := exec.Command("/bin/get-snp-report", reportDataStr)
 	reportOutput, err := cmd.Output()
 	if err != nil {
-		log.Fatalf("Failed to generate attestation report: %v", err)
+		return nil, status.Errorf(codes.Internal, "Failed to generate attestation report: %v", err)
 	}
 
 	return &keyprovider.KeyProviderGetReportOutput{
@@ -312,25 +319,38 @@ func (s *server) GetReport(c context.Context, in *keyprovider.KeyProviderGetRepo
 
 func main() {
 	port := flag.String("keyprovider_sock", "127.0.0.1:50000", "Port on which the key provider to listen")
-	file_to_wrap := flag.String("infile", "", "File to be wrapped")
+	flag.String("getresource_sock", "127.0.0.1:50001", "Port on which the resource provider to listen. Ignored")
+	infile := flag.String("infile", "", "The file with its content to be wrapped")
 	key_path := flag.String("keypath", "", "The path to the wrapping key")
+	outfile := flag.String("outfile", "", "The file to save the wrapped data")
 	flag.Parse()
 
-	if *file_to_wrap  != "" {
-		bytes, err := os.ReadFile(*file_to_wrap)
+	if *infile  != "" {
+		bytes, err := os.ReadFile(*infile)
 		if err != nil {
-			log.Fatalf("Can't read input file %v", *file_to_wrap)
+			log.Fatalf("Can't read input file %v", *infile)
 		}
 		if *key_path == "" {
 			log.Fatalf("The key path is not specified for wrapping")
+		}
+		if *outfile == "" {
+			log.Fatalf("The output file is not specified")
 		}
 
 		if _, err := os.Stat(*key_path + "-info.json"); err != nil {
 			log.Fatalf("The wrapping key info is not found")
 		}
 
-		annotationBytes := directWrap(bytes, *key_path)
-		log.Printf(base64.StdEncoding.EncodeToString(annotationBytes))
+		annotationBytes, e := directWrap(bytes, *key_path)
+		if e != nil {
+			log.Fatalf("%v", e)
+		}
+
+		outstr := base64.StdEncoding.EncodeToString(annotationBytes)
+		if err := os.WriteFile(*outfile, []byte(outstr), 0644); err != nil {
+			log.Fatalf("Failed to save the wrapped data to %v", *outfile)
+		}
+		log.Printf("Success! The wrapped data is saved to %v", *outfile)
 		return
 	}
 
@@ -354,7 +374,7 @@ func main() {
 	}
 	azure_info.Identity.ClientId = os.Getenv("AZURE_CLIENT_ID")
 	if azure_info.Identity.ClientId == "" {
-		log.Printf("Warning: Env AZURE_CLIENT_ID is not set. We need it for unwrapping secretes.")
+		log.Printf("Warning: Env AZURE_CLIENT_ID is not set")
 	}
 
 	s := grpc.NewServer()
@@ -362,6 +382,6 @@ func main() {
 	reflection.Register(s)
 	log.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
+		log.Fatalf("failed to start GRPC server: %v", err)
 	}
 }

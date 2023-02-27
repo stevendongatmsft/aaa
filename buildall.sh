@@ -11,7 +11,7 @@ mkdir -p bin
 pushd bin
 echo building aaa
 # TODO: use 'upx --best --lzma' to reudce executable size
-go build -ldflags="-s -w" github.com/container-investigations/aaa/cmd/aaa
+CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" github.com/container-investigations/aaa/cmd/aaa
 popd
 
 echo building get-snp-report
