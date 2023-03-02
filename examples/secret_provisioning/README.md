@@ -53,10 +53,13 @@ aasp --infile plaintext --keypath ./testkey000 --outfile wrapped
 
 This [sample docker file](https://github.com/container-investigations/aaa/blob/master/docker/Dockerfile.sample)
 shows how the secret is unwrapped with the script [unwrap.sh](https://github.com/container-investigations/aaa/blob/master/scripts/unwrap.sh).
-
 From this point, the secret is made available to the confidential container as
 a plaintext file, and the container can use it for further confidential computing.
 
+Check [here](https://github.com/container-investigations/kata-verity/tree/kata-cc-based/katacc-bootstrap#deploy-a-sample-secret-provisioning-pod)
+fora sample deployment of a confidential pod with the AASP container,
+a container that invokes the attetation API, and a container that invokes
+the secret provisioning API of the AASP container.
 
 
 

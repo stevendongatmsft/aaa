@@ -31,7 +31,7 @@ Use `buildall.sh` to build the `AASP` tool and container.
 
 # Instructions
 
-The [example](examples/README.md) provides an end-to-end workflow on how to
+The [example](examples/secret_provisioning/README.md) provides an end-to-end workflow on how to
 protect a secret with the tool and how to provision the secret in a container
 running alongside the AASP container in a Kubernetes pod that is VM-isolated
 based on [Kata containers](https://github.com/kata-containers/kata-containers).
