@@ -1,0 +1,7 @@
+FROM alpine:3.17.1
+
+COPY  ./bin/* /bin/
+
+# set the start command
+CMD [ "/bin/aasp"]
+

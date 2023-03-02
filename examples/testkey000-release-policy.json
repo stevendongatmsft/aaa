@@ -1,0 +1,3 @@
+{ "anyOf":[ { "authority":"https://sharedeus2.eus2.attest.azure.net", "allOf":[
+{"claim":"x-ms-attestation-type", "equals":"sevsnpvm"},
+] } ], "version":"0.2" }

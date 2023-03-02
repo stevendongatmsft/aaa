@@ -1,4 +1,4 @@
-Project name: Azure Attestation Agent
+Project name: Azure Attestation and Secret Provisioning
 
 Copyright (c) Microsoft Corporation.
 

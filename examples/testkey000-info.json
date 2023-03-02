@@ -1,0 +1,5 @@
+{
+"public_key_path": "testkey000-pub.pem",
+"kms_endpoint": "accmhsm.managedhsm.azure.net",
+"attester_endpoint": "sharedeus2.eus2.attest.azure.net"
+}

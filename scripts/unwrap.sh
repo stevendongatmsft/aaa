@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
@@ -24,7 +24,7 @@ AAA=`printf aaa | base64 -w0`
 ANNO=`cat ${infile}`
 REQ=`echo "{\"op\":\"keyunwrap\",\"keywrapparams\":{},\"keyunwrapparams\":{\"dc\":{\"Parameters\":{\"attestation-agent\":[\"${AAA}\"]}},\"annotation\":\"${ANNO}\"}}" | base64 -w0`
 echo KeyProviderKeyWrapProtocolInput: ${REQ}
-grpcurl -plaintext -d "{\"KeyProviderKeyWrapProtocolInput\":\"${REQ}\"}" 127.0.0.1:${KEY_PROVIDER_PORT} keyprovider.KeyProviderService.UnWrapKey > reply.json
+grpcurl -plaintext -d "{\"KeyProviderKeyWrapProtocolInput\":\"${REQ}\"}" localhost:${KEY_PROVIDER_PORT} keyprovider.KeyProviderService.UnWrapKey > reply.json
 cat reply.json | jq -r '.KeyProviderKeyWrapProtocolOutput'  | base64 -d | jq -r '.keyunwrapresults.optsdata' | base64 -d > ${outfile}
 rm reply.json
 echo "Unwrapped secret saved to ${outfile}"
