@@ -36,9 +36,20 @@ protect a secret with the tool and how to provision the secret in a container
 running alongside the AASP container in a Kubernetes pod that is VM-isolated
 based on [Kata containers](https://github.com/kata-containers/kata-containers).
 
+# Credits
+
+This project heavily relies on [Confidential Sidecar Containers](https://github.com/microsoft/confidential-sidecar-containers)
+for their implementation of Secure Key Release (SKR)
+
+# Compatibility
+
+AASP conforms to the [keyprovider protocol](
+https://github.com/containers/ocicrypt/blob/main/docs/keyprovider.md) of ocicrypt and [Kata Attestation Agent]
+(https://github.com/confidential-containers/attestation-agent)
+
 # Licensing
 
-This project is released under the [MIT License](LICENSE).
+This project is released under the [MIT License](LICENSE.txt).
 
 # Contributing
 
