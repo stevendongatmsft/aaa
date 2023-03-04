@@ -31,6 +31,9 @@ docker build -t aasp_sample -f docker/Dockerfile.sample .
 docker build -t encrypted_sample -f docker/Dockerfile.enc .
 
 echo encrypting container image and pushing to the registry
-bin/aasp &
-OCICRYPT_KEYPROVIDER_CONFIG=examples/encrypted_image/ocicrypt.conf skopeo copy --insecure-policy --encryption-key provider:attestation-agent:aasp:imagekey000 docker-daemon:encrypted_sample:latest docker://jxyang100/encrypted_sample_imagekey000
+pushd examples/encrypted_image
+pkill aasp || true
+../../bin/aasp &
+OCICRYPT_KEYPROVIDER_CONFIG=ocicrypt.conf skopeo copy --insecure-policy --encryption-key provider:attestation-agent:aasp:imagekey000 docker-daemon:encrypted_sample:latest docker://jxyang100/encrypted_sample_imagekey000
 pkill aasp
+popd
