@@ -187,8 +187,8 @@ func (s *server) WrapKey(c context.Context, grpcInput *keyprovider.KeyProviderKe
 
 	aa := tokens[0]
 	kid := tokens[1]
-	if aa != "aaa" {
-		return nil, status.Errorf(codes.InvalidArgument, "Unexpected attestation agent specified. Perhaps you send the request to a wrong endpoint?")
+	if aa != "aasp" && aa != "aaa" {
+		return nil, status.Errorf(codes.InvalidArgument, "Unexpected attestation agent %v specified. Perhaps you send the request to a wrong endpoint?", aa)
 	}
 	log.Printf("Attestation agent: %v, kid: %v", aa, kid)
 
@@ -227,8 +227,8 @@ func (s *server) UnWrapKey(c context.Context, grpcInput *keyprovider.KeyProvider
 	aa, _ := base64.StdEncoding.DecodeString(dc.Parameters["attestation-agent"][0])
 	log.Printf("Attestation agent name: %v", string(aa))
 
-	if string(aa) != "aaa" {
-		return nil, status.Errorf(codes.InvalidArgument, "Unexpected attestation agent specified. Perhaps you send the request to a wrong endpoint?")
+	if string(aa) != "aasp" && string(aa) != "aaa" {
+		return nil, status.Errorf(codes.InvalidArgument, "Unexpected attestation agent %v specified. Perhaps you send the request to a wrong endpoint?", string(aa))
 	}
 
 	var annotationBytes []byte

@@ -1,0 +1,6 @@
+FROM busybox:1.35
+
+COPY ./examples/secret_provisioning/plaintext /
+
+CMD [ "cat", "/plaintext" ]
+
