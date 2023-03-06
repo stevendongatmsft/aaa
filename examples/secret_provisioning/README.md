@@ -1,13 +1,19 @@
-# Set up MHSM
+# How to provision secrets into a confidential container
+
+This example shows how to wrap a secret into a confidential container and
+unwrap it at runtime. We use AASP as a command line tool to wrap the
+secret, and AASP as a GRPC service to unwrap the secret during runtime.
+
+## Set up MHSM
 
 To set up a MHSM instance, follow instructions [here with Azure CLI](https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/quick-create-cli),
 or through the [Azure portal](https://ms.portal.azure.com/#view/HubsExtension/BrowseResource/resourceType/Microsoft.KeyVault%2FmanagedHSMs).
 
 You can follow the installation instructions for Azure CLI [here](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli).
 
-# Set up an asymmetric key in MHSM with a key release policy
+## Set up an asymmetric key in MHSM with a key release policy
 
-## Prepare for the key release policy
+### Prepare for the key release policy
 ```bash
 # Create a managed identity for accessing MHSM. Note the Principle ID of the identity
 az identity create -g <resource-group-name> -n <identity-name>
@@ -24,7 +30,7 @@ Even though `GUEST_IMAGE_MEASUREMENT` and `WORKLOAD_MEASUREMENT` are optional,
 we strongly recommend them to be included in the key release policy for
 better protection of the MHSM key which in turn protects your secrets.
 
-## Create an asymmetric key in MHSM and produce files related to the key
+### Create an asymmetric key in MHSM and produce files related to the key
 
 This is a one time effort. Once the key is created, it can be used to protect
 as many secrets as possible.
@@ -39,7 +45,7 @@ several files:
 
 The script also assigns `read` permission to the managed identity for the key.
 
-# Protect secrets with the asymmetric key
+## Protect secrets with the asymmetric key
 
 In this example, the secret is stored in file [plaintext](plaintext). Assuming
 the name of the key we created in the above step is `testkey000`, we can
@@ -49,7 +55,7 @@ protect the secret with (adjust the path to the key if necessary):
 aasp --infile plaintext --keypath ./testkey000 --outfile wrapped
 ```
 
-# Copy the wrapped secret into a container where it will be unwrapped inside a TEE
+## Copy the wrapped secret into a container and unwrap it inside a TEE
 
 This [sample docker file](https://github.com/container-investigations/aaa/blob/master/docker/Dockerfile.sample)
 shows how the secret is unwrapped with the script [unwrap.sh](https://github.com/container-investigations/aaa/blob/master/scripts/unwrap.sh).
@@ -60,7 +66,4 @@ Check [here](https://github.com/container-investigations/kata-verity/tree/kata-c
 fora sample deployment of a confidential pod with the AASP container,
 a container that invokes the attetation API, and a container that invokes
 the secret provisioning API of the AASP container.
-
-
-
 

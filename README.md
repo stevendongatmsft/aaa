@@ -44,8 +44,8 @@ for their implementation of Secure Key Release (SKR)
 # Compatibility
 
 AASP conforms to the [keyprovider protocol](
-https://github.com/containers/ocicrypt/blob/main/docs/keyprovider.md) of ocicrypt and [Kata Attestation Agent]
-(https://github.com/confidential-containers/attestation-agent)
+https://github.com/containers/ocicrypt/blob/main/docs/keyprovider.md) of ocicrypt and
+[Kata Attestation Agent](https://github.com/confidential-containers/attestation-agent)
 
 # Licensing
 
