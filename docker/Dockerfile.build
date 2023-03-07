@@ -1,0 +1,23 @@
+ARG GOLANG_VERSION=1.17
+
+FROM golang:${GOLANG_VERSION} AS build
+ENV PROJECT_DIR=/go/src/github.com
+WORKDIR ${PROJECT_DIR}
+RUN git clone https://github.com/microsoft/confidential-sidecar-containers.git 
+RUN git clone https://github.com/container-investigations/aaa.git
+RUN cd ${PROJECT_DIR}/confidential-sidecar-containers/tools/get-snp-report && make && mv bin/get-snp-report / && mv bin/get-fake-snp-report /
+RUN cd ${PROJECT_DIR}/aaa && CGO_ENABLED=0 GOOS=linux go build -o /aasp -ldflags="-s -w" github.com/container-investigations/aaa/cmd/aasp
+
+
+FROM alpine:3.17.1
+
+RUN apk update && apk --no-cache add curl
+
+RUN mkdir -p bin
+
+COPY --from=build /aasp ./bin/
+COPY --from=build /get-snp-report ./bin/
+COPY --from=build /get-fake-snp-report ./bin/
+RUN date > /made-date
+
+CMD [ "/bin/aasp" ]
