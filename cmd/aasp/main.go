@@ -264,6 +264,18 @@ func (s *server) UnWrapKey(c context.Context, grpcInput *keyprovider.KeyProvider
 		MHSM:      mhsm,
 	}
 
+	azuredata, err := json.Marshal(azure_info)
+	if err != nil {
+		fmt.Println("errdsuauhdksa")
+	}
+	logrus.Debugf("azure_info %s\n", string(azuredata))
+
+	skrdata, err := json.Marshal(skrKeyBlob)
+	if err != nil {
+		fmt.Println("errdsuauhdksa1")
+	}
+	logrus.Debugf("skrKeyBlob %s\n", string(skrdata))
+
 	// MHSM has limit on the request size. We do not pass the EncodedSecurityPolicy here so
 	// it is not presented as fine-grained init-time claims in the MAA token, which would
 	// introduce larger MAA tokens that MHSM would accept
