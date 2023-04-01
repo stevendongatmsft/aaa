@@ -6,30 +6,32 @@ package main
 
 import (
 	"context"
-	"flag"
-	"fmt"
-	"log"
-	"net"
-	"path"
-	"strings"
-	"os"
-	"os/exec"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"flag"
+	"fmt"
+	"log"
+	"net"
+	"os"
+	"os/exec"
+	"path"
+	"strings"
 
-	"encoding/json"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
+
+	"github.com/Microsoft/confidential-sidecar-containers/pkg/attest"
+	"github.com/Microsoft/confidential-sidecar-containers/pkg/common"
+	"github.com/Microsoft/confidential-sidecar-containers/pkg/skr"
+	"github.com/container-investigations/aaa/pkg/keyprovider"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
-	"github.com/container-investigations/aaa/pkg/keyprovider"
-	"github.com/Microsoft/confidential-sidecar-containers/pkg/attest"
-	"github.com/Microsoft/confidential-sidecar-containers/pkg/common"
-	"github.com/Microsoft/confidential-sidecar-containers/pkg/skr"
 )
 
 type AzureInformation struct {
@@ -55,41 +57,41 @@ type DecryptConfig struct {
 
 type EncryptConfig struct {
 	Parameters map[string][]string
-	Dc DecryptConfig
+	Dc         DecryptConfig
 }
 
 type KeyWrapParams struct {
-    Ec EncryptConfig `json:"ec,omitempty"`
-    Optsdata string `json:"optsdata,omitempty"`
+	Ec       EncryptConfig `json:"ec,omitempty"`
+	Optsdata string        `json:"optsdata,omitempty"`
 }
 
 type KeyUnwrapParams struct {
-    Dc DecryptConfig `json:"dc,omitempty"`
-    Annotation string `json:"annotation"`
+	Dc         DecryptConfig `json:"dc,omitempty"`
+	Annotation string        `json:"annotation"`
 }
 
 type AnnotationPacket struct {
-    Kid string `json:"kid"`
-    WrappedData []byte `json:"wrapped_data"`
-    Iv []byte `json:"iv,omitempty"`
-    WrapType string `json:"wrap_type,omitempty"`
-    KmsEndpoint string `json:"kms_endpoint,omitempty"`
-    AttesterEndpoint string `json:"attester_endpoint,omitempty"`
+	Kid              string `json:"kid"`
+	WrappedData      []byte `json:"wrapped_data"`
+	Iv               []byte `json:"iv,omitempty"`
+	WrapType         string `json:"wrap_type,omitempty"`
+	KmsEndpoint      string `json:"kms_endpoint,omitempty"`
+	AttesterEndpoint string `json:"attester_endpoint,omitempty"`
 }
 
 type RSAKeyInfo struct {
-    PublicKeyPath string `json:"public_key_path"`
-    KmsEndpoint string `json:"kms_endpoint"`
-    AttesterEndpoint string `json:"attester_endpoint"`
+	PublicKeyPath    string `json:"public_key_path"`
+	KmsEndpoint      string `json:"kms_endpoint"`
+	AttesterEndpoint string `json:"attester_endpoint"`
 }
 
 type keyProviderInput struct {
-    // Operation is either "keywrap" or "keyunwrap"
-    // attestation-agent can only handle the case of "keyunwrap"
-    Op string `json:"op"`
-    // For attestation-agent, keywrapparams should be empty.
-    KeyWrapParams KeyWrapParams `json:"keywrapparams,omitempty"`
-    KeyUnwrapParams KeyUnwrapParams `json:"keyunwrapparams,omitempty"`
+	// Operation is either "keywrap" or "keyunwrap"
+	// attestation-agent can only handle the case of "keyunwrap"
+	Op string `json:"op"`
+	// For attestation-agent, keywrapparams should be empty.
+	KeyWrapParams   KeyWrapParams   `json:"keywrapparams,omitempty"`
+	KeyUnwrapParams KeyUnwrapParams `json:"keyunwrapparams,omitempty"`
 }
 
 type KeyUnwrapResults struct {
@@ -161,7 +163,7 @@ func directWrap(optsdata []byte, key_path string) ([]byte, error) {
 	}
 
 	annotation.WrappedData = ciphertext
-	annotationBytes, _ :=  json.Marshal(annotation)
+	annotationBytes, _ := json.Marshal(annotation)
 	return annotationBytes, nil
 }
 
@@ -194,7 +196,7 @@ func (s *server) WrapKey(c context.Context, grpcInput *keyprovider.KeyProviderKe
 
 	optsdata, err := base64.StdEncoding.DecodeString(input.KeyWrapParams.Optsdata)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument , "Optsdata is not base64 encoding: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "Optsdata is not base64 encoding: %v", err)
 	}
 
 	annotationBytes, e := directWrap(optsdata, kid)
@@ -222,7 +224,7 @@ func (s *server) UnWrapKey(c context.Context, grpcInput *keyprovider.KeyProvider
 
 	var dc = input.KeyUnwrapParams.Dc
 	if len(dc.Parameters["attestation-agent"]) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument , "attestation-agent must be specified in decryption config parameters: %v", str)
+		return nil, status.Errorf(codes.InvalidArgument, "attestation-agent must be specified in decryption config parameters: %v", str)
 	}
 	aa, _ := base64.StdEncoding.DecodeString(dc.Parameters["attestation-agent"][0])
 	log.Printf("Attestation agent name: %v", string(aa))
@@ -246,8 +248,8 @@ func (s *server) UnWrapKey(c context.Context, grpcInput *keyprovider.KeyProvider
 	log.Printf("Annotation packet: %v", annotation)
 
 	mhsm := skr.MHSM{
-		Endpoint:    annotation.KmsEndpoint,
-		APIVersion:  "api-version=7.3-preview",
+		Endpoint:   annotation.KmsEndpoint,
+		APIVersion: "api-version=7.3-preview",
 	}
 
 	maa := attest.MAA{
@@ -271,19 +273,19 @@ func (s *server) UnWrapKey(c context.Context, grpcInput *keyprovider.KeyProvider
 		return nil, status.Errorf(codes.Internal, "SKR failed: %v", err)
 	}
 
-       key, err := x509.ParsePKCS8PrivateKey(keyBytes)
-       if err != nil {
-                return nil, status.Errorf(codes.Internal, "Released key is invalid: %v", err)
-        }
+	key, err := x509.ParsePKCS8PrivateKey(keyBytes)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Released key is invalid: %v", err)
+	}
 
 	var out *keyprovider.KeyProviderKeyWrapProtocolOutput = nil
 	var plaintext []byte
-       if privkey, ok := key.(*rsa.PrivateKey); ok {
-               plaintext, err = rsa.DecryptOAEP(sha256.New(), rand.Reader, privkey, annotation.WrappedData, nil)
-               if err != nil {
-                       return nil, status.Errorf(codes.Internal, "Unwrapping failed: %v", err)
-               }
-       } else {
+	if privkey, ok := key.(*rsa.PrivateKey); ok {
+		plaintext, err = rsa.DecryptOAEP(sha256.New(), rand.Reader, privkey, annotation.WrappedData, nil)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Unwrapping failed: %v", err)
+		}
+	} else {
 		return nil, status.Errorf(codes.Internal, "Released key is not a RSA private key: %v", err)
 	}
 
@@ -325,7 +327,7 @@ func main() {
 	outfile := flag.String("outfile", "", "The file to save the wrapped data")
 	flag.Parse()
 
-	if *infile  != "" {
+	if *infile != "" {
 		bytes, err := os.ReadFile(*infile)
 		if err != nil {
 			log.Fatalf("Can't read input file %v", *infile)
@@ -354,6 +356,12 @@ func main() {
 		return
 	}
 
+	ll, err := logrus.ParseLevel("debug")
+	if err != nil {
+		ll = logrus.DebugLevel
+	}
+	logrus.SetLevel(ll)
+
 	lis, err := net.Listen("tcp", *port)
 	if err != nil {
 		log.Fatalf("failed to listen on port %v: %v", *port, err)
@@ -361,15 +369,15 @@ func main() {
 	log.Printf("Listening on port %v", *port)
 
 	certCacheEndpoint := os.Getenv("CertCacheEndpoint")
-	if  certCacheEndpoint == "" {
+	if certCacheEndpoint == "" {
 		certCacheEndpoint = defaultCertCacheEndpoint
 	}
 
 	// Temporary solution until we get the cert chain from the host
 	azure_info.CertCache = attest.CertCache{
-		AMD: false,
-		Endpoint: certCacheEndpoint,
-		TEEType: "SevSnpVM",
+		AMD:        false,
+		Endpoint:   certCacheEndpoint,
+		TEEType:    "SevSnpVM",
 		APIVersion: "api-version=2020-10-15-preview",
 	}
 	azure_info.Identity.ClientId = os.Getenv("AZURE_CLIENT_ID")
